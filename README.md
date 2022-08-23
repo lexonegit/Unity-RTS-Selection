@@ -1,4 +1,4 @@
-# RTS Selection
+# Unity RTS Selection
 
 - Select *units* in the style of various RTS games (Age of Empires, etc...)
 - Clean and efficient raycast based implementation
