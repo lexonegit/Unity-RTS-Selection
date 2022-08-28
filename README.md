@@ -11,3 +11,6 @@
 
 - Check out the included example scene to see how it all works
 
+## Credit
+
+The core idea (mesh collider approach) is based on <a href="https://youtu.be/OL1QgwaDsqo?t=26">this video</a>
