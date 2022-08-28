@@ -1,6 +1,7 @@
 # Unity RTS Selection
 
 - Select *units* in the style of various RTS games (Age of Empires, etc...)
+- Also supports single selecting and adding or removing from current selection
 - Clean and efficient raycast based implementation
 - Works for both perspective and orthographic cameras
 
