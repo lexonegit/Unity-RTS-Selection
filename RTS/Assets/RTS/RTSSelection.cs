@@ -8,6 +8,8 @@ using UnityEngine;
 
 public class RTSSelection : MonoBehaviour
 {
+    public enum SelectionMode { Default, Add, Subtract };
+
     [Header("References")]
     public MeshCollider selectionCollider;
 
@@ -16,61 +18,134 @@ public class RTSSelection : MonoBehaviour
 
     [Header("Settings")]
     public LayerMask raycastLayerMask;
-    public float minSelectionArea = 0.001f;
-    public float maxDistance = 500f;
+    public float raycastMaxDistance = 500f;
+
+    [Header("Multi select settings")]
+    [Range(1, 64), Tooltip("The minimum width & height for the selection area (must be at least 1)")]
+    public int minSelectionSize = 2;
+
+    [Header("Single select settings")]
+    [Range(0f, 5f), Tooltip("Radius for single selection (capsule cast) If 0 then a normal raycast is used instead")]
+    public float singleSelectionRadius = 0f;
+
+    [HideInInspector] public List<ISelectable> selectedObjects = new List<ISelectable>();
 
     // Private
-    private List<ISelectable> selectedObjects = new List<ISelectable>();
+    private SelectionMode selectionMode = SelectionMode.Default;
+    private Mesh currentSelectionMesh;
     private Ray ray;
     private RaycastHit hit;
+    private RaycastHit[] hits;
     private Vector2 p1, p2;
     private bool selecting = false;
+    private bool multiSelect = false;
+
 
     /// <summary>
-    /// Begins the selection process. 
+    /// Starts the selection process (mouse down)
     /// </summary>
-    public void BeginSelection()
+    public void BeginSelection(SelectionMode mode)
     {
         selecting = true;
-        selectionRect.gameObject.SetActive(true);
+        multiSelect = false;
+        selectionMode = mode;
 
-        StartCoroutine(UpdateSelection(Input.mousePosition));
-    }
-
-    private IEnumerator UpdateSelection(Vector2 initialMousePos)
-    {
-        // Update the selection rectangle every frame until it is confirmed
-        while (selecting)
-        {
-            p1 = initialMousePos;
-            p2 = Input.mousePosition;
-
-            // Update UI
-            float w = p2.x - p1.x;
-            float h = p2.y - p1.y;
-            selectionRect.anchoredPosition = p1 + new Vector2(w / 2, h / 2);
-            selectionRect.sizeDelta = new Vector2(Mathf.Abs(w), Mathf.Abs(h));
-
-            yield return null; // Wait for next frame
-        }
+        StartCoroutine(UpdateMultiSelection(Input.mousePosition));
     }
 
     /// <summary>
-    /// Confirms the current selection and selects anything that is in the selection area.
+    /// Confirms the selection (mouse up)
     /// </summary>
     public void ConfirmSelection()
     {
         selecting = false;
-        selectionRect.gameObject.SetActive(false);
-        DeselectAll(); // Clear previous selection
+        Cleanup(); // Destroy previous selection mesh (if it exists)
 
+        // Clear previous selection, but only if using default selection mode
+        if (selectionMode == SelectionMode.Default)
+            ClearSelection();
+
+        if (multiSelect)
+            ConfirmMultiSelection();
+        else
+            ConfirmSingleSelection();
+    }
+
+    private IEnumerator UpdateMultiSelection(Vector3 initialMousePos)
+    {
+        // Start by detecting when multi selection starts (dragging)
+        while (selecting)
+        {
+            if (initialMousePos == Input.mousePosition)
+            {
+                yield return null;
+                continue;
+            }
+
+            // Mouse moved = it's a multi selection => move to the next step
+            multiSelect = true;
+            break;
+        }
+
+        if (!multiSelect) // Selection ended but it wasn't a multi selection
+            yield break;
+
+        // Multi selection started, show the selection rect UI
+        selectionRect.gameObject.SetActive(true);
+
+        while (selecting)
+        {
+            // Update the selection rectangle every frame until it is confirmed
+            p1 = initialMousePos;
+            p2 = Input.mousePosition;
+
+            // Update UI dimensions
+            float w = p2.x - p1.x;
+            float h = p2.y - p1.y;
+            selectionRect.anchoredPosition = p1 + new Vector2(w / 2, h / 2);
+            selectionRect.sizeDelta = new Vector2
+            (
+                Mathf.Clamp(Mathf.Abs(w), minSelectionSize, Mathf.Infinity),
+                Mathf.Clamp(Mathf.Abs(Mathf.Abs(h)), minSelectionSize, Mathf.Infinity)
+            );
+
+            yield return null; // Wait for next frame
+        }
+
+        // Selection concluded, hide the selection rect UI
+        selectionRect.gameObject.SetActive(false);
+    }
+
+    private void ConfirmSingleSelection()
+    {
+        ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+
+        // Raycast
+        // If singleSelectionRadius is more than 0 then use a capsule cast, otherwise a normal raycast
+        hits = singleSelectionRadius > 0
+            ? Physics.CapsuleCastAll(ray.origin, ray.origin + ray.direction * raycastMaxDistance, singleSelectionRadius, ray.direction)
+            : Physics.RaycastAll(ray.origin, ray.direction, raycastMaxDistance);
+
+        Debug.DrawRay(ray.origin, ray.direction * raycastMaxDistance, Color.magenta, 3f);
+
+        // Pick the first valid selectable hit from the raycast
+        for (int i = 0; i < hits.Length; ++i)
+        {
+            ISelectable selectable = hits[i].collider.GetComponentInParent<ISelectable>();
+
+            if (selectable == null)
+                continue;
+
+            HandleSelectable(selectable);
+            break;
+        }
+    }
+
+    private void ConfirmMultiSelection()
+    {
         // Update selection
         Vector3[] vertices = new Vector3[8];
         Vector2[] corners = CreateCorners(p1, p2);
-
-        // If corners is null then it means that the selection area is too small
-        if (corners == null)
-            return;
 
         int index = 0;
         for (int i = 0; i < corners.Length; ++i)
@@ -78,10 +153,10 @@ public class RTSSelection : MonoBehaviour
             ray = Camera.main.ScreenPointToRay(corners[i]);
 
             // Raycast towards the corner
-            bool raycast = Physics.Raycast(ray, out hit, maxDistance, raycastLayerMask);
+            bool raycast = Physics.Raycast(ray, out hit, raycastMaxDistance, raycastLayerMask);
 
             // If nothing was hit, use the max distance point
-            Vector3 hitPoint = raycast ? hit.point : ray.GetPoint(maxDistance);
+            Vector3 hitPoint = raycast ? hit.point : ray.GetPoint(raycastMaxDistance);
 
             vertices[index] = hitPoint; // Vertices at the end of the ray
             vertices[index + 4] = ray.origin - hitPoint; // Vertices closest to the camera
@@ -93,22 +168,39 @@ public class RTSSelection : MonoBehaviour
         }
 
         // Create the selection collider
-        Mesh mesh = CreateSelectionMesh(vertices);
+        currentSelectionMesh = CreateSelectionMesh(vertices);
 
-        StartCoroutine(SetSelectionColliderMesh(mesh));
+        StartCoroutine(SetSelectionColliderMesh());
     }
 
-    private IEnumerator SetSelectionColliderMesh(Mesh mesh)
+    private IEnumerator SetSelectionColliderMesh()
     {
         // Set the collider mesh
-        selectionCollider.sharedMesh = mesh;
+        selectionCollider.sharedMesh = currentSelectionMesh;
 
         // Wait 1 physics update (otherwise the collision trigger won't fire)
         yield return new WaitForFixedUpdate();
 
+        // Cleanup, if it's still needed (another selection process could have already interrupted this one)
+        if (selectionCollider.sharedMesh != null)
+            Cleanup();
+    }
+
+    private void OnTriggerEnter(Collider col)
+    {
+        ISelectable selectable = col.GetComponentInParent<ISelectable>();
+
+        if (selectable == null)
+            return;
+
+        HandleSelectable(selectable);
+    }
+
+    private void Cleanup()
+    {
         // Remove the collider mesh, it's no longer needed
         selectionCollider.sharedMesh = null;
-        Destroy(mesh);
+        Destroy(currentSelectionMesh);
     }
 
     private Vector2[] CreateCorners(Vector2 p1, Vector2 p2)
@@ -128,10 +220,37 @@ public class RTSSelection : MonoBehaviour
         float width = (corners[0] - corners[1]).magnitude;
         float height = (corners[0] - corners[2]).magnitude;
 
-        // If the selection is too small, return null,
-        // Unity will throw errors otherwise.
-        if (width < minSelectionArea || height < minSelectionArea)
-            return null;
+        // Debug.Log("True selection dimensions: " + width + " x " + height);
+
+        // Selection size verifying
+        // The mesh generation will fail if the selection size is too small (<1 ish)
+        // That's why the following procedure is needed.
+
+        // If width is less than the minimum, adjust it to be the same as the minimum
+        if (width < minSelectionSize)
+        {
+            float diff = minSelectionSize - width;
+
+            corners[0].x -= diff * 0.5f;
+            corners[1].x += diff * 0.5f;
+            corners[2].x -= diff * 0.5f;
+            corners[3].x += diff * 0.5f;
+        }
+
+        // If height is less than the minimum, adjust it to be the same as the minimum
+        if (height < minSelectionSize)
+        {
+            float diff = minSelectionSize - height;
+
+            corners[0].y += diff * 0.5f;
+            corners[1].y += diff * 0.5f;
+            corners[2].y -= diff * 0.5f;
+            corners[3].y -= diff * 0.5f;
+        }
+
+        // width = (corners[0] - corners[1]).magnitude;
+        // height = (corners[0] - corners[2]).magnitude;
+        // Debug.Log("Adjusted selection dimensions: " + width + " x " + height);
 
         return corners;
     }
@@ -159,18 +278,29 @@ public class RTSSelection : MonoBehaviour
         return mesh;
     }
 
-    private void OnTriggerEnter(Collider col)
+    private void HandleSelectable(ISelectable selectable)
     {
-        ISelectable selectable = col.GetComponent<ISelectable>();
-
-        if (selectable == null)
-            return;
-
-        Select(selectable);
+        switch (selectionMode)
+        {
+            case SelectionMode.Default:
+                Select(selectable);
+                break;
+            case SelectionMode.Add:
+                Select(selectable);
+                break;
+            case SelectionMode.Subtract:
+                Deselect(selectable);
+                break;
+        }
     }
 
     private void Select(ISelectable selectable)
     {
+        // Check if this was already selected
+        // Your target objects might have more than 1 collider attached, so this is needed
+        if (selectedObjects.Contains(selectable))
+            return;
+
         selectable.Select();
 
         selectedObjects.Add(selectable);
@@ -183,7 +313,7 @@ public class RTSSelection : MonoBehaviour
         selectedObjects.Remove(selectable);
     }
 
-    private void DeselectAll()
+    private void ClearSelection()
     {
         for (int i = 0; i < selectedObjects.Count; ++i)
             selectedObjects[i].Deselect();

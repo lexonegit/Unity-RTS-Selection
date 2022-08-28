@@ -18,10 +18,19 @@ public class RTSCamera : MonoBehaviour
         // Mouse
         if (Input.GetMouseButtonDown(0))
         {
-            selection.BeginSelection();
+            // Different modes (Default, add, subtract)
+            RTSSelection.SelectionMode mode = RTSSelection.SelectionMode.Default;
+
+            if (Input.GetKey(KeyCode.LeftShift))
+                mode = RTSSelection.SelectionMode.Add;
+            else
+            if (Input.GetKey(KeyCode.LeftControl))
+                mode = RTSSelection.SelectionMode.Subtract;
+
+            selection.BeginSelection(mode);
         }
 
-        if (Input.GetMouseButtonUp(0))
+        if (Input.GetMouseButtonUp(0)) // All selection confirms on mouse up
         {
             selection.ConfirmSelection();
         }
@@ -34,8 +43,11 @@ public class RTSCamera : MonoBehaviour
         // Rotation
         if (Input.GetMouseButton(1))
         {
+            float xRotation = Input.GetAxis("Mouse X");
+
             // Rotate around y axis
-            transform.Rotate(0, Input.GetAxis("Mouse X") * rotateSensitivity * Time.deltaTime, 0, Space.World);
+            transform.Rotate(0, xRotation * rotateSensitivity * Time.deltaTime, 0, Space.World);
         }
+
     }
 }

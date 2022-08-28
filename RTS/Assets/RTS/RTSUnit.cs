@@ -8,7 +8,7 @@ public class RTSUnit : MonoBehaviour, ISelectable
     {
         GetComponent<MeshRenderer>().material.color = Color.red;
     }
-    
+
     public void Deselect()
     {
         GetComponent<MeshRenderer>().material.color = Color.white;
