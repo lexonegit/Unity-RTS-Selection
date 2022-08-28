@@ -11,9 +11,3 @@
 
 - Check out the included example scene to see how it all works
 
-## Missing features (TODO)
-
-- Single select
-- Add to selection (hold shift)
-- Remove from selection (hold ctrl)
-
