@@ -5,8 +5,7 @@
 - Clean and efficient raycast based implementation
 - Works for both perspective and orthographic cameras
 
-<img src="https://user-images.githubusercontent.com/18125997/186161734-3bd20ce3-39bb-4f28-8f8e-f24d768c6732.gif" width="60%">
-
+<img src="https://user-images.githubusercontent.com/18125997/187076649-d7674b41-85af-4979-ad58-7fb7e7a4832b.gif" width="60%">
 
 ## Getting started
 
