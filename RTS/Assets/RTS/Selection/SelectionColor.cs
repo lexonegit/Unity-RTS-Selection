@@ -1,8 +1,7 @@
 using System;
-using Unity.VisualScripting;
 using UnityEngine;
 
-namespace RTS
+namespace RTS.Selection
 {
     public class SelectionColor : SelectionListener
     {

@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace RTS
+namespace RTS.Core
 {
     [Serializable]
     public class GameInput

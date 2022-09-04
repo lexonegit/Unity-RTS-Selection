@@ -2,9 +2,11 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using RTS.Core;
+using RTS.Utility;
 using UnityEngine;
 
-namespace RTS
+namespace RTS.Selection
 {
     public class Selector : MonoBehaviour, IDisposable
     {

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace RTS
+namespace RTS.Selection
 {
     [RequireComponent(typeof(SelectionReceiver))]
     public abstract class SelectionListener : MonoBehaviour

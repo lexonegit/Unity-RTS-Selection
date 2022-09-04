@@ -1,20 +1,22 @@
-﻿using RTS;
-using UnityEngine;
+﻿using UnityEngine;
 
-[CreateAssetMenu]
-public class GameData : ScriptableObject
+namespace RTS.Core
 {
-    public GameSettings Settings = default;
-    public GameInput Input = default;
-
-    private static GameData _instance = default;
-    public static GameData Instance
+    [CreateAssetMenu]
+    public class GameData : ScriptableObject
     {
-        get
+        public GameSettings Settings = default;
+        public GameInput Input = default;
+
+        private static GameData _instance = default;
+        public static GameData Instance
         {
-            if (_instance == null) 
-                _instance = Resources.Load<GameData>("GameData");
-            return _instance;    
+            get
+            {
+                if (_instance == null) 
+                    _instance = Resources.Load<GameData>("GameData");
+                return _instance;    
+            }
         }
     }
 }

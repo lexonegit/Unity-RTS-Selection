@@ -1,7 +1,8 @@
+using RTS.Utility;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace RTS
+namespace RTS.Selection
 {
     public class SelectionBox : MonoBehaviour
     {

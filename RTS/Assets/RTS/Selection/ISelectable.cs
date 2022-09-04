@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace RTS
+namespace RTS.Selection
 {
     public interface ISelectable
     {

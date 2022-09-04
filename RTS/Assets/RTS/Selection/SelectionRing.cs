@@ -1,4 +1,4 @@
-namespace RTS
+namespace RTS.Selection
 {
     public class SelectionRing : SelectionListener
     {

@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace RTS
+namespace RTS.Utility
 {
     public static class MeshBuilder
     {
