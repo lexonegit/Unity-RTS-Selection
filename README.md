@@ -1,4 +1,14 @@
 # Fork
+
+### v 0.0.2
+
+Extracted CameraDirectionMovement and CameraRotation from CameraMovement then removed it.
+
+Added CameraPan, CameraZoom, CameraEdgeScroll, and CursorLock features and scripts.
+
+
+### v 0.0.1
+
 https://www.reddit.com/r/Unity3D/comments/wzvzzm/comment/in0sgrx/
 
 - Encapsulated the classes, so not everything serialized is public when it doesn't need to be.
