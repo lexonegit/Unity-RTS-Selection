@@ -29,7 +29,7 @@ namespace RTS.Control
 
         private void Update()
         {
-            if (_requireCursorLockToScroll && Cursor.lockState == CursorLockMode.None) return;
+            if (_requireCursorLockToScroll && Cursor.lockState == CursorLockMode.None || GameData.Instance.Input.Provider.PanCamera) return;
             var movementDirection = Quaternion.Euler(0, transform.localEulerAngles.y, 0) * InputDirection;
             transform.Translate(movementDirection * _sensitivity * Time.deltaTime, Space.World);
         }
