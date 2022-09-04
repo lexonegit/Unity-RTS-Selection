@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 42f4b1e8ea8746ac98164fc9857abfb0, type: 3}
   m_Name: GameData
-  m_EditorClassIdentifier: Assembly-CSharp::GameData
+  m_EditorClassIdentifier: 
   Settings:
     <UnitLayer>k__BackingField:
       serializedVersion: 2
@@ -21,12 +21,12 @@ MonoBehaviour:
       m_Bits: 64
   Input:
     Provider:
-      rid: 1126248533000716294
+      rid: 1126248557032505344
   references:
     version: 2
     RefIds:
-    - rid: 1126248533000716294
-      type: {class: PCInput, ns: RTS, asm: Assembly-CSharp}
+    - rid: 1126248557032505344
+      type: {class: PCInput, ns: RTS.Core, asm: Assembly-CSharp}
       data:
         _panCamera: 2
         _unitSelection: 0

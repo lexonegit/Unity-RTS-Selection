@@ -7,8 +7,8 @@ namespace RTS.Core
     public class GameCursor
     {
         public static bool CursorVisible => Cursor.visible;
-        private static Vector3 ScreenPosition => new(Mathf.Clamp01(Input.mousePosition.x / Screen.width), Mathf.Clamp01(Input.mousePosition.y / Screen.height), 0);
-        private static Ray CursorRay => GameData.Instance.Input.Provider.Camera.ViewportPointToRay(ScreenPosition);
+        public static Vector3 ClampedPosition => new(Mathf.Clamp01(Input.mousePosition.x / Screen.width), Mathf.Clamp01(Input.mousePosition.y / Screen.height), 0);
+        private static Ray CursorRay => GameData.Instance.Input.Provider.Camera.ViewportPointToRay(ClampedPosition);
         private static Camera Camera => GameData.Instance.Input.Provider.Camera;
         private static LayerMask GroundLayer => GameData.Instance.Settings.GroundLayer;
         private static LayerMask UnitLayer => GameData.Instance.Settings.UnitLayer;

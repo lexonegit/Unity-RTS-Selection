@@ -8,12 +8,17 @@ namespace RTS.Core
     public class GameInput
     {
         [SerializeReference] public IInputProvider Provider = new PCInput();
+
+        [ContextMenu("Reset")]
+        private void Reset() => Provider = new PCInput();
     }
 
     public interface IInputProvider
     {
         Camera Camera { get; }
         bool PanCamera { get; }
+        bool PanCameraDown { get; }
+        bool PanCameraUp { get; }
         bool UnitSelectionDown { get; }
         bool UnitSelectionUp { get; }
         bool UnitSelection { get; }
@@ -34,6 +39,8 @@ namespace RTS.Core
 
         public Camera Camera => Camera.main;
         public bool PanCamera => Input.GetMouseButton((int)_panCamera);
+        public bool PanCameraDown => Input.GetMouseButtonDown((int)_panCamera);
+        public bool PanCameraUp => Input.GetMouseButtonUp((int)_panCamera);
         public bool UnitSelectionDown => Input.GetMouseButtonDown((int) _unitSelection);
         public bool UnitSelectionUp => Input.GetMouseButtonUp((int) _unitSelection);
         public bool UnitSelection => Input.GetMouseButton((int) _unitSelection);
