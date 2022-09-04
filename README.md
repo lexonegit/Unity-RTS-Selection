@@ -13,7 +13,8 @@ The changes are mostly just moving the logic around and cleaning up minor parts;
 
 Thanks for sharing your work; I hope you can check this fork out!PS: Thanks for explaining why a BoxCastAll doesn't work! I hadn't considered the impact of a perspective camera as my previous project was ortho camera in editor and VR builds.PS:PS: I tried doing a _rigidbody.SweepAll() to try and work around the quirky coroutine yielding to fixed update, but that really wasn't a great path. Kind of sad there isn't a Overlapping raycast option for rigidbodies
 
-https://i.imgur.com/gmV4xIX.mp4
+<img src="https://i.imgur.com/gmV4xIX.mp4" width="60%">
+
 
 
 
