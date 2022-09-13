@@ -1,11 +1,10 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 /// <summary>
-/// Simple camera controller and input handler for demonstration purposes.
+/// Simple RTS-style camera controller and input handler for demonstration purposes.
 /// </summary>
-
 public class RTSCamera : MonoBehaviour
 {
     public RTSSelection selection;
@@ -18,19 +17,25 @@ public class RTSCamera : MonoBehaviour
         // Mouse
         if (Input.GetMouseButtonDown(0))
         {
-            // Different modes (Default, add, subtract)
-            RTSSelection.SelectionMode mode = RTSSelection.SelectionMode.Default;
+            // Don't begin selecting if clicking on UI
+            // TODO: Exclude World space UI from this check
+            if (IsPointerOverUIElement())
+                return;
+
+            // Different modes (Default, additive, subtractive)
+            RTSSelection.SelectionModifier mode = RTSSelection.SelectionModifier.Default;
 
             if (Input.GetKey(KeyCode.LeftShift))
-                mode = RTSSelection.SelectionMode.Add;
+                mode = RTSSelection.SelectionModifier.Additive;
             else
             if (Input.GetKey(KeyCode.LeftControl))
-                mode = RTSSelection.SelectionMode.Subtract;
+                mode = RTSSelection.SelectionModifier.Subtractive;
 
             selection.BeginSelection(mode);
         }
 
-        if (Input.GetMouseButtonUp(0)) // All selection confirms on mouse up
+        // All selection confirms on mouse up
+        if (Input.GetMouseButtonUp(0) && selection.selecting)
         {
             selection.ConfirmSelection();
         }
@@ -48,6 +53,21 @@ public class RTSCamera : MonoBehaviour
             // Rotate around y axis
             transform.Rotate(0, xRotation * rotateSensitivity * Time.deltaTime, 0, Space.World);
         }
+    }
 
+    private bool IsPointerOverUIElement()
+    {
+        PointerEventData eventData = new PointerEventData(EventSystem.current);
+        eventData.position = Input.mousePosition;
+        List<RaycastResult> raycastResults = new List<RaycastResult>();
+        EventSystem.current.RaycastAll(eventData, raycastResults);
+
+        for (int index = 0; index < raycastResults.Count; index++)
+        {
+            RaycastResult curRaysastResult = raycastResults[index];
+            if (curRaysastResult.gameObject.layer == LayerMask.NameToLayer("UI"))
+                return true;
+        }
+        return false;
     }
 }

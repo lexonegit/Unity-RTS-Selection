@@ -4,11 +4,13 @@ using UnityEngine;
 
 /// <summary>
 /// Physics based RTS-style selection script.
+/// Repository: https://github.com/lexonegit/Unity-RTS-Selection
 /// </summary>
 
 public class RTSSelection : MonoBehaviour
 {
-    public enum SelectionMode { Default, Add, Subtract };
+    public enum SelectionModifier { Default, Additive, Subtractive };
+    public enum DefaultModeStartBehavior { Keep, Clear };
 
     [Header("References")]
     public MeshCollider selectionCollider;
@@ -17,6 +19,7 @@ public class RTSSelection : MonoBehaviour
     public RectTransform selectionRect;
 
     [Header("Settings")]
+    public int team = -1;
     public LayerMask raycastLayerMask;
     public float raycastMaxDistance = 500f;
 
@@ -28,27 +31,36 @@ public class RTSSelection : MonoBehaviour
     [Range(0f, 5f), Tooltip("Radius for single selection (capsule cast) If 0 then a normal raycast is used instead")]
     public float singleSelectionRadius = 0f;
 
-    [HideInInspector] public List<ISelectable> selectedObjects = new List<ISelectable>();
+    [Tooltip("Keep the current selection or clear it when starting a new selection")]
+    public DefaultModeStartBehavior defaultModeStartBehavior = DefaultModeStartBehavior.Keep;
 
     // Private
-    private SelectionMode selectionMode = SelectionMode.Default;
+    private SelectionModifier selectionModifier = SelectionModifier.Default;
     private Mesh currentSelectionMesh;
     private Ray ray;
     private RaycastHit hit;
     private RaycastHit[] hits;
     private Vector2 p1, p2;
-    private bool selecting = false;
-    private bool multiSelect = false;
+    public bool selecting = false;
+    public bool multiSelecting = false;
 
+    [HideInInspector] public List<ISelectable> detectedObjects = new List<ISelectable>();
+    [HideInInspector] public List<ISelectable> toBeSelected = new List<ISelectable>();
 
     /// <summary>
     /// Starts the selection process (mouse down)
     /// </summary>
-    public void BeginSelection(SelectionMode mode)
+    public void BeginSelection(SelectionModifier mode)
     {
+        // Avoid starting more than one selection process at a time
+        if (selecting)
+            return;
+
         selecting = true;
-        multiSelect = false;
-        selectionMode = mode;
+        selectionModifier = mode;
+
+        if (defaultModeStartBehavior == DefaultModeStartBehavior.Clear && selectionModifier == SelectionModifier.Default)
+            DeselectAll(true);
 
         StartCoroutine(UpdateMultiSelection(Input.mousePosition));
     }
@@ -58,14 +70,7 @@ public class RTSSelection : MonoBehaviour
     /// </summary>
     public void ConfirmSelection()
     {
-        selecting = false;
-        Cleanup(); // Destroy previous selection mesh (if it exists)
-
-        // Clear previous selection, but only if using default selection mode
-        if (selectionMode == SelectionMode.Default)
-            ClearSelection();
-
-        if (multiSelect)
+        if (multiSelecting)
             ConfirmMultiSelection();
         else
             ConfirmSingleSelection();
@@ -82,12 +87,12 @@ public class RTSSelection : MonoBehaviour
                 continue;
             }
 
-            // Mouse moved = it's a multi selection => move to the next step
-            multiSelect = true;
+            // Mouse moved => it's a multi selection => move to the next step
+            multiSelecting = true;
             break;
         }
 
-        if (!multiSelect) // Selection ended but it wasn't a multi selection
+        if (!multiSelecting) // Selection ended but it wasn't a multi selection
             yield break;
 
         // Multi selection started, show the selection rect UI
@@ -128,7 +133,7 @@ public class RTSSelection : MonoBehaviour
 
         Debug.DrawRay(ray.origin, ray.direction * raycastMaxDistance, Color.magenta, 3f);
 
-        // Pick the first valid selectable hit from the raycast
+        // Iterate hits
         for (int i = 0; i < hits.Length; ++i)
         {
             ISelectable selectable = hits[i].collider.GetComponentInParent<ISelectable>();
@@ -136,9 +141,15 @@ public class RTSSelection : MonoBehaviour
             if (selectable == null)
                 continue;
 
-            HandleSelectable(selectable);
-            break;
+            StartCoroutine(ProcessRaycastHit(selectable));
+            return; // We are only interested in the first hit, so we can stop here
         }
+
+        // If we get here then no valid selectable was hit
+        if (selectionModifier == SelectionModifier.Default)
+            DeselectAll(true);
+
+        Cleanup();
     }
 
     private void ConfirmMultiSelection()
@@ -167,40 +178,142 @@ public class RTSSelection : MonoBehaviour
             index++;
         }
 
-        // Create the selection collider
+        // Create the selection collider mesh
         currentSelectionMesh = CreateSelectionMesh(vertices);
 
-        StartCoroutine(SetSelectionColliderMesh());
-    }
-
-    private IEnumerator SetSelectionColliderMesh()
-    {
         // Set the collider mesh
         selectionCollider.sharedMesh = currentSelectionMesh;
+
+        StartCoroutine(ProcessTriggerHits());
+    }
+
+    private IEnumerator ProcessRaycastHit(ISelectable selectable)
+    {
+        // Clear previous selection
+        detectedObjects.Clear();
+
+        // Technically raycasts could be processed instantly on this frame,
+        // but for the sake of consistency we use the same logic as in multi selection,
+        // which is to register the selection on the next frame.
+        // You can comment out this line if you want to process raycasts instantly
+        yield return new WaitForFixedUpdate();
+
+        // Add the raycast hit
+        TryAddToDetected(selectable);
+
+        FinalizeSelection();
+    }
+
+    private IEnumerator ProcessTriggerHits()
+    {
+        // Clear previous selection
+        detectedObjects.Clear();
 
         // Wait 1 physics update (otherwise the collision trigger won't fire)
         yield return new WaitForFixedUpdate();
 
-        // Cleanup, if it's still needed (another selection process could have already interrupted this one)
-        if (selectionCollider.sharedMesh != null)
-            Cleanup();
+        FinalizeSelection();
     }
 
-    private void OnTriggerEnter(Collider col)
+    private void FinalizeSelection()
     {
-        ISelectable selectable = col.GetComponentInParent<ISelectable>();
+        // Procedure explanation
+        // 1. Deselect previously selected objects
+        // 2. Process what objects should be kept/added/removed => add to toBeSelected
+        // 3. Select all the objects in toBeSelected
 
-        if (selectable == null)
-            return;
+        // detectedObjects contains all the objects that were hit by the selection in THIS "frame" (single or multi)
+        // toBeSelected contains all the objects that are going to stay OR become selected now
 
-        HandleSelectable(selectable);
+        // 1. Deselect previously selected objects
+        DeselectAll();
+
+        // 2. Process what objects should be kept/added/removed => add to toBeSelected
+        if (selectionModifier == SelectionModifier.Default)
+        {
+            // Default selection mode => override everything
+            toBeSelected = new List<ISelectable>(detectedObjects);
+        }
+        else
+        {
+            // Additive and subtractive selection mode => add/remove from the current selection
+            for (int i = 0; i < detectedObjects.Count; ++i)
+                ProcessSelectable(detectedObjects[i]);
+        }
+
+        // 3. Select all the objects in toBeSelected
+        for (int i = 0; i < toBeSelected.Count; ++i)
+            toBeSelected[i].Select();
+
+
+        // Selection complete! => do some cleaning up
+        Cleanup();
+    }
+
+    private void ProcessSelectable(ISelectable selectable)
+    {
+        switch (selectionModifier)
+        {
+            // Add if it's not already added
+            case SelectionModifier.Additive:
+                TryAddToSelected(selectable);
+                break;
+
+            // Remove if it has been added
+            case SelectionModifier.Subtractive:
+                TryRemoveFromSelected(selectable);
+                break;
+        }
     }
 
     private void Cleanup()
     {
-        // Remove the collider mesh, it's no longer needed
-        selectionCollider.sharedMesh = null;
-        Destroy(currentSelectionMesh);
+        multiSelecting = false;
+        selecting = false;
+        detectedObjects.Clear();
+
+        // Remove the selection mesh and collider (no longer needed)
+        if (currentSelectionMesh != null)
+        {
+            selectionCollider.sharedMesh = null;
+            Destroy(currentSelectionMesh);
+        }
+    }
+
+    private void DeselectAll(bool clear = false)
+    {
+        for (int i = 0; i < toBeSelected.Count; ++i)
+            toBeSelected[i].Deselect();
+
+        if (clear)
+            toBeSelected.Clear();
+    }
+
+    private void TryAddToDetected(ISelectable selectable)
+    {
+        if (selectable == null)
+            return;
+
+        if (detectedObjects.Contains(selectable))
+            return;
+
+        // Only the same "team" objects can be selected
+        if (selectable.Team != team)
+            return;
+
+        detectedObjects.Add(selectable);
+    }
+
+    private void TryAddToSelected(ISelectable selectable)
+    {
+        if (!toBeSelected.Contains(selectable))
+            toBeSelected.Add(selectable);
+    }
+
+    private void TryRemoveFromSelected(ISelectable selectable)
+    {
+        if (toBeSelected.Contains(selectable))
+            toBeSelected.Remove(selectable);
     }
 
     private Vector2[] CreateCorners(Vector2 p1, Vector2 p2)
@@ -224,7 +337,7 @@ public class RTSSelection : MonoBehaviour
 
         // Selection size verifying
         // The mesh generation will fail if the selection size is too small (<1 ish)
-        // That's why the following procedure is needed.
+        // That's why the following procedure is needed. Is there a better way of doing this...?
 
         // If width is less than the minimum, adjust it to be the same as the minimum
         if (width < minSelectionSize)
@@ -248,9 +361,7 @@ public class RTSSelection : MonoBehaviour
             corners[3].y -= diff * 0.5f;
         }
 
-        // width = (corners[0] - corners[1]).magnitude;
-        // height = (corners[0] - corners[2]).magnitude;
-        // Debug.Log("Adjusted selection dimensions: " + width + " x " + height);
+        // Debug.Log("Adjusted selection dimensions: " + (corners[0] - corners[1]).magnitude; + " x " + (corners[0] - corners[2]).magnitude);
 
         return corners;
     }
@@ -278,46 +389,13 @@ public class RTSSelection : MonoBehaviour
         return mesh;
     }
 
-    private void HandleSelectable(ISelectable selectable)
+    //
+    // UNITY EVENTS
+    //
+
+    private void OnTriggerEnter(Collider col)
     {
-        switch (selectionMode)
-        {
-            case SelectionMode.Default:
-                Select(selectable);
-                break;
-            case SelectionMode.Add:
-                Select(selectable);
-                break;
-            case SelectionMode.Subtract:
-                Deselect(selectable);
-                break;
-        }
-    }
-
-    private void Select(ISelectable selectable)
-    {
-        // Check if this was already selected
-        // Your target objects might have more than 1 collider attached, so this is needed
-        if (selectedObjects.Contains(selectable))
-            return;
-
-        selectable.Select();
-
-        selectedObjects.Add(selectable);
-    }
-
-    private void Deselect(ISelectable selectable)
-    {
-        selectable.Deselect();
-
-        selectedObjects.Remove(selectable);
-    }
-
-    private void ClearSelection()
-    {
-        for (int i = 0; i < selectedObjects.Count; ++i)
-            selectedObjects[i].Deselect();
-
-        selectedObjects.Clear();
+        ISelectable selectable = col.GetComponentInParent<ISelectable>();
+        TryAddToDetected(selectable);
     }
 }
